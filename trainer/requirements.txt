@@ -1,0 +1,12 @@
+torch>=2.2.0
+torchvision>=0.17.0
+datasets>=2.18.0
+transformers>=4.38.0
+sentence-transformers>=2.5.0
+Pillow>=10.2.0
+numpy>=1.26.0
+onnx>=1.15.0
+onnxruntime>=1.17.0
+accelerate>=0.27.0
+scikit-learn>=1.4.0
+onnxscript>=0.1.0

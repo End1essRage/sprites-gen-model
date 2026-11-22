@@ -1,0 +1,100 @@
+version: '3'
+
+vars:
+  PYTHON_DIR: trainer
+  RUST_DIR: inference
+  DOCKER_IMAGE: pixel-inference:latest
+
+tasks:
+  default:
+    desc: "Показать доступные команды"
+    cmds:
+      - task --list
+
+  setup:minilm:
+    dir: "{{.RUST_DIR}}"
+    cmds:
+    - curl -L -o minilm.onnx "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model_qint8_arm64.onnx"
+    - curl -L -o tokenizer.json "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
+
+  # ==========================================
+  # Python (Обучение)
+  # ==========================================
+
+  py:setup:
+    desc: "Установить Python-зависимости"
+    dir: "{{.PYTHON_DIR}}"
+    cmds:
+      - python -m venv venv
+      - source venv/bin/activate && pip install --upgrade pip
+      - source venv/bin/activate && pip install -r requirements.txt
+    status:
+      - test -d {{.PYTHON_DIR}}/venv
+
+  py:train:
+    desc: "Запустить обучение модели"
+    dir: "{{.PYTHON_DIR}}"
+    deps: [py:setup]
+    cmds:
+      - source venv/bin/activate && python train.py
+
+  py:export:
+    desc: "Экспортировать обученную модель в ONNX"
+    dir: "{{.PYTHON_DIR}}"
+    deps: [py:setup]
+    cmds:
+      - source venv/bin/activate && python export_onnx.py
+      - cp pixel_model.onnx ../{{.RUST_DIR}}/pixel_model.onnx
+      - echo "Модель скопирована в {{.RUST_DIR}}"
+
+  # ==========================================
+  # Rust (Инференс)
+  # ==========================================
+
+  rust:build:
+    desc: "Собрать Rust-инференсер (debug)"
+    dir: "{{.RUST_DIR}}"
+    cmds:
+      - cargo build
+
+  rust:build:release:
+    desc: "Собрать Rust-инференсер (release)"
+    dir: "{{.RUST_DIR}}"
+    cmds:
+      - cargo build --release
+
+  rust:run:
+    desc: "Запустить Rust-инференсер локально"
+    dir: "{{.RUST_DIR}}"
+    deps: [rust:build]
+    cmds:
+      - cargo run
+
+  # ==========================================
+  # Docker
+  # ==========================================
+
+  docker:build:
+    desc: "Собрать Docker-образ с моделью"
+    dir: "{{.RUST_DIR}}"
+    deps: [py:export] # Убеждаемся, что модель скопирована
+    cmds:
+      - docker build -t {{.DOCKER_IMAGE}} .
+
+  docker:run:
+    desc: "Запустить Docker-контейнер"
+    cmds:
+      - docker run --rm {{.DOCKER_IMAGE}}
+
+  # ==========================================
+  # Очистка
+  # ==========================================
+
+  clean:
+    desc: "Удалить сгенерированные файлы (venv, веса, onnx)"
+    cmds:
+      - rm -rf {{.PYTHON_DIR}}/venv
+      - rm -f {{.PYTHON_DIR}}/*.pth
+      - rm -f {{.PYTHON_DIR}}/*.onnx
+      - rm -f {{.RUST_DIR}}/*.onnx
+      - cd {{.RUST_DIR}} && cargo clean
