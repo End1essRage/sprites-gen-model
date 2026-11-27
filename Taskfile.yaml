@@ -32,11 +32,25 @@ tasks:
       - test -d {{.PYTHON_DIR}}/venv
 
   py:train:
-    desc: "Запустить обучение модели"
+    desc: "Запустить обучение модели (фаза train + фаза test)"
     dir: "{{.PYTHON_DIR}}"
     deps: [py:setup]
     cmds:
-      - source venv/bin/activate && python train.py
+      - source venv/bin/activate && python train.py --source real
+
+  py:train:synth:
+    desc: "Быстрое обучение на синтетике (офлайн) с фазой тестов"
+    dir: "{{.PYTHON_DIR}}"
+    deps: [py:setup]
+    cmds:
+      - source venv/bin/activate && python train.py --source synth
+
+  py:test:
+    desc: "Только фаза тестов по сохранённым весам"
+    dir: "{{.PYTHON_DIR}}"
+    deps: [py:setup]
+    cmds:
+      - source venv/bin/activate && python train.py --test-only
 
   py:export:
     desc: "Экспортировать обученную модель в ONNX"
