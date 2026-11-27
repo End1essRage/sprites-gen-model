@@ -2,6 +2,18 @@ import torch
 import torch.nn as nn
 
 class PixelTransformer(nn.Module):
+    """Text embedding [B,384] -> pixel grid [B,256,3].
+
+    Архитектура: MLP-шейп-декодер.
+      1) proj: 384 -> d_model
+      2) mlp:  d_model -> 4*d_model -> 8*d_model
+      3) head: 8*d_model -> 256*3, затем sigmoid в [0,1]
+
+    BatchNorm здесь — осознанно: он нормализует активации по батчу и стабилизирует
+    обучение при малых данных. При экспорте в ONNX BN "сворачивается" в Linear,
+    так что инференсер не замечает разницы.
+    """
+
     def __init__(self, d_model=256):
         super().__init__()
         
